@@ -1,0 +1,27 @@
+{
+  "name": "aifred-electron-ui",
+  "version": "0.1.0",
+  "description": "Electron UI for AIFred",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "NODE_ENV=development electron .",
+    "dev-win": "set NODE_ENV=development && electron .",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "aifred",
+    "electron",
+    "ai",
+    "assistant"
+  ],
+  "author": "Harshwardhan Fartale",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^32.0.0"
+  },
+  "dependencies": {
+    "highlight.js": "^11.8.0",
+    "marked": "^15.0.11"
+  }
+}

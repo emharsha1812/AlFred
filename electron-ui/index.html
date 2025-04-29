@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; 
+             connect-src http://127.0.0.1:8000; 
+             style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; 
+             font-src https://fonts.gstatic.com; 
+             script-src 'self'; 
+             img-src 'self' data:;"
+    />
+    <meta
+      http-equiv="X-Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'"
+    />
+    <title>AIFred</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div id="terminal-window">
+      <!-- Enhanced title bar with window controls and status -->
+      <div class="title-bar">
+        <div class="app-logo">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M12 2L2 7L12 12L22 7L12 2Z"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <path
+              d="M2 17L12 22L22 17"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <path
+              d="M2 12L12 17L22 12"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+          AIFred
+        </div>
+
+        <div class="status-indicator">
+          <div class="status-dot connecting" id="status-dot"></div>
+          <span id="status-text">Connecting...</span>
+        </div>
+
+        <div class="window-controls">
+          <div class="window-control minimize" id="minimize-btn"></div>
+          <div class="window-control maximize" id="maximize-btn"></div>
+          <div class="window-control close" id="close-btn"></div>
+        </div>
+      </div>
+
+      <!-- Main container with output and input areas -->
+      <div id="main-container">
+        <div id="output-area"></div>
+
+        <!-- New input area for sending commands -->
+        <div id="input-container">
+          <input
+            type="text"
+            id="input-field"
+            placeholder="Send a message or type a command..."
+            autocomplete="off"
+          />
+          <button id="submit-button">Send</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Load highlight.js for code syntax highlighting -->
+    <script src="./node_modules/highlight.js/lib/core.js"></script>
+    <script src="./node_modules/highlight.js/lib/languages/javascript.js"></script>
+    <script src="./node_modules/highlight.js/lib/languages/python.js"></script>
+
+    <!-- Main renderer script -->
+    <script src="renderer.js"></script>
+  </body>
+</html>
