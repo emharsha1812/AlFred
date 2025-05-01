@@ -9,7 +9,7 @@
              style-src 'self' https://fonts.googleapis.com 'unsafe-inline';
              font-src https://fonts.gstatic.com;
              script-src 'self';
-             img-src 'self' data:;"
+             img-src 'self' data: blob:;"
     />
     <meta
       http-equiv="X-Content-Security-Policy"
@@ -86,11 +86,26 @@
       <div id="main-container">
         <div id="output-area"></div>
 
+        <div id="attachment-info" class="hidden">
+          <span id="attachment-filename"></span>
+          <button id="remove-attachment-btn" title="Remove Image">
+            &times;
+          </button>
+        </div>
+
         <div id="input-container">
+          <input
+            type="file"
+            id="image-upload-input"
+            accept="image/*"
+            style="display: none"
+          />
+          <button id="attach-button" title="Attach Image">📎</button>
+
           <input
             type="text"
             id="input-field"
-            placeholder="Send a message..."
+            placeholder="Send a message or attach an image..."
             autocomplete="off"
           />
           <button id="submit-button">Send</button>
@@ -98,7 +113,6 @@
       </div>
     </div>
     <script src="./node_modules/marked/marked.min.js"></script>
-
     <script src="renderer.js"></script>
   </body>
 </html>

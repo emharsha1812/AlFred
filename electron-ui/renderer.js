@@ -1,7 +1,5 @@
 // electron-ui/renderer.js
 
-// Wrap entire script in DOMContentLoaded to ensure DOM is ready
-// and libraries loaded via <script> tags are potentially available.
 document.addEventListener("DOMContentLoaded", () => {
   // --- DOM Elements ---
   const outputArea = document.getElementById("output-area");
@@ -12,15 +10,26 @@ document.addEventListener("DOMContentLoaded", () => {
   const minimizeBtn = document.getElementById("minimize-btn");
   const maximizeBtn = document.getElementById("maximize-btn");
   const closeBtn = document.getElementById("close-btn");
-  const modelSelect = document.getElementById("model-select"); // Added
-  const refreshModelsBtn = document.getElementById("refresh-models-btn"); // Added
+  const modelSelect = document.getElementById("model-select");
+  const refreshModelsBtn = document.getElementById("refresh-models-btn");
+  // --- New DOM Elements for Image Upload ---
+  const attachButton = document.getElementById("attach-button");
+  const imageUploadInput = document.getElementById("image-upload-input");
+  const attachmentInfo = document.getElementById("attachment-info");
+  const attachmentFilename = document.getElementById("attachment-filename");
+  const removeAttachmentBtn = document.getElementById("remove-attachment-btn");
+  // --- End New DOM Elements ---
 
   // --- State Variables ---
-  let currentSelectedModel = null; // Stores the currently selected model name
-  let defaultModel = null; // Stores the default model name from backend status
+  let currentSelectedModel = null;
+  let defaultModel = null;
+  // --- New State Variable for Image ---
+  let attachedImageBase64 = null; // Store the base64 string of the image
+  let attachedImageFilename = null; // Store the filename
+  // --- End New State Variable ---
 
   // --- Backend API URL ---
-  const BACKEND_URL = "http://127.0.0.1:8000"; // Your FastAPI server address
+  const BACKEND_URL = "http://127.0.0.1:8000";
 
   // --- Functions ---
 
@@ -39,11 +48,15 @@ document.addEventListener("DOMContentLoaded", () => {
   /**
    * Adds a plain text message line for user input display.
    * @param {string} message The text message to add.
+   * @param {boolean} hasAttachment Indicates if an image was attached with this message.
    */
-  function addUserMessage(message) {
+  function addUserMessage(message, hasAttachment = false) {
     const line = document.createElement("div");
-    // line.classList.add("user-message"); // Optional class
-    line.textContent = message;
+    let displayMessage = `> ${message}`;
+    if (hasAttachment) {
+      displayMessage += ` [Image: ${attachedImageFilename || "Attached"}]`; // Add indication
+    }
+    line.textContent = displayMessage;
     outputArea.appendChild(line);
     scrollToBottom();
   }
@@ -54,82 +67,87 @@ document.addEventListener("DOMContentLoaded", () => {
    */
   function addError(message) {
     const line = document.createElement("div");
-    line.textContent = `Error: ${message}`; // Prefix with "Error: "
+    line.textContent = `Error: ${message}`;
     line.classList.add("error-message");
     outputArea.appendChild(line);
     scrollToBottom();
   }
 
   /**
-   * Adds a block of preformatted text (fallback).
-   * Used if Markdown rendering fails or for simple text.
-   * @param {string} text The preformatted text.
+   * Clears the currently attached image state and UI.
    */
-  function addPreformattedText(text) {
-    const pre = document.createElement("pre");
-    const code = document.createElement("code");
-    code.textContent = text; // Display as plain text
-    pre.appendChild(code);
-    outputArea.appendChild(pre);
-    scrollToBottom();
+  function clearAttachment() {
+    attachedImageBase64 = null;
+    attachedImageFilename = null;
+    attachmentFilename.textContent = "";
+    attachmentInfo.classList.add("hidden");
+    // Reset the file input so the same file can be selected again
+    imageUploadInput.value = null;
+    console.log("Attachment cleared.");
   }
+
+  // --- (renderMarkdownResponse, showLoading, hideLoading, updateConnectionStatus, scrollToBottom - remain unchanged) ---
+  // Include the updated renderMarkdownResponse from previous step if you haven't already
 
   /**
    * Parses Markdown string, highlights code blocks, creates a container div,
-   * and returns it ready for appending. Relies on global 'marked' and 'hljs'.
+   * and returns it ready for appending. Relies on global 'marked' and bridged 'api.highlightCode'.
    * @param {string} markdownString The raw Markdown string.
    * @returns {HTMLDivElement} A div element containing the rendered content.
    */
   function renderMarkdownResponse(markdownString) {
     const container = document.createElement("div");
-    container.classList.add("llm-response"); // Class for styling
+    container.classList.add("llm-response");
 
     try {
-      // Check if Marked library is loaded globally
       if (typeof marked === "undefined" || !marked) {
         throw new Error("Marked library is not loaded.");
       }
 
-      // Configure marked
       marked.setOptions({
         gfm: true,
         breaks: true,
       });
 
-      // Parse Markdown to HTML
       const generatedHtml = marked.parse(markdownString);
       container.innerHTML = generatedHtml;
 
-      // Try to highlight code blocks using global highlight.js if available
-      // Note: We previously found global 'hljs' might not be loading correctly.
-      if (window.hljs && typeof window.hljs.highlightElement === "function") {
+      // Use the highlightCode function exposed via preload bridge
+      if (window.api && typeof window.api.highlightCode === "function") {
         container.querySelectorAll("pre code").forEach((block) => {
           try {
-            hljs.highlightElement(block);
+            const languageMatch = block.className.match(/language-(\w+)/);
+            const language = languageMatch ? languageMatch[1] : null;
+            const codeText = block.textContent;
+            const highlightedHtml = window.api.highlightCode(
+              codeText,
+              language
+            );
+            block.innerHTML = highlightedHtml;
           } catch (highlightError) {
             console.warn(
-              "Error applying highlight.js to a code block:",
-              highlightError
+              "Error applying highlight via bridge:",
+              highlightError,
+              "Block:",
+              block
             );
           }
         });
       } else {
-        // This warning might still appear if hljs isn't loading globally
         console.warn(
-          "Highlight.js (hljs) not available globally, skipping code highlighting."
+          "window.api.highlightCode not available via preload bridge, skipping code highlighting."
         );
       }
 
-      return container; // Return the container element with rendered content
+      return container;
     } catch (error) {
       console.error("Error processing Markdown response:", error);
-      // Fallback: Display error and raw text in preformatted block
       container.innerHTML = `<p>Error rendering response.</p><pre>${markdownString.substring(
         0,
         200
       )}...</pre>`;
       container.classList.add("error-message");
-      return container; // Return the container with error info
+      return container;
     }
   }
 
@@ -241,9 +259,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     try {
       const response = await fetch(`${BACKEND_URL}/api/models`);
-      const data = await response.json(); // Read response body once
+      const data = await response.json();
 
-      // Check for errors reported by the backend *or* HTTP errors
       if (!response.ok) {
         throw new Error(data.error || `HTTP error ${response.status}`);
       }
@@ -251,7 +268,7 @@ document.addEventListener("DOMContentLoaded", () => {
         throw new Error(data.error);
       }
 
-      modelSelect.innerHTML = ""; // Clear loading/previous options
+      modelSelect.innerHTML = "";
       fetchedModels = data.models || [];
 
       if (fetchedModels.length > 0) {
@@ -261,7 +278,6 @@ document.addEventListener("DOMContentLoaded", () => {
           option.textContent = modelName;
           modelSelect.appendChild(option);
         });
-        // Set selection: previous > default > first
         if (
           currentSelectedModel &&
           fetchedModels.includes(currentSelectedModel)
@@ -270,7 +286,7 @@ document.addEventListener("DOMContentLoaded", () => {
         } else if (defaultModel && fetchedModels.includes(defaultModel)) {
           modelSelect.value = defaultModel;
         } else {
-          modelSelect.value = fetchedModels[0]; // Fallback to first
+          modelSelect.value = fetchedModels[0];
         }
         currentSelectedModel = modelSelect.value;
         console.log(`Models loaded. Selected: ${currentSelectedModel}`);
@@ -285,9 +301,8 @@ document.addEventListener("DOMContentLoaded", () => {
       modelSelect.innerHTML = `<option value="">Error</option>`;
       currentSelectedModel = null;
     } finally {
-      // Enable/disable based on whether models were actually loaded
       modelSelect.disabled = fetchedModels.length === 0;
-      refreshModelsBtn.disabled = false; // Always enable refresh button after attempt
+      refreshModelsBtn.disabled = false;
     }
   }
 
@@ -296,7 +311,7 @@ document.addEventListener("DOMContentLoaded", () => {
    */
   async function checkBackendStatus() {
     try {
-      updateConnectionStatus("connecting"); // Show connecting initially
+      updateConnectionStatus("connecting");
       addSystemMessage("Connecting to backend...");
 
       const response = await fetch(`${BACKEND_URL}/api/status`);
@@ -304,16 +319,14 @@ document.addEventListener("DOMContentLoaded", () => {
       const data = await response.json();
       console.log("Backend Status:", data);
 
-      defaultModel = data.ollama_model; // Store default model name from status response
+      defaultModel = data.ollama_model;
       updateConnectionStatus("connected");
       addSystemMessage(`Connected. Default model: ${defaultModel || "N/A"}.`);
-      setInteractionDisabled(false); // Enable controls now
+      setInteractionDisabled(false);
       inputField.focus();
 
-      // Fetch models only after successful status check
       await fetchAndPopulateModels();
 
-      // Update ready message based on model loading result
       if (currentSelectedModel) {
         addSystemMessage(`Ready. Model '${currentSelectedModel}' selected.`);
       } else {
@@ -325,7 +338,7 @@ document.addEventListener("DOMContentLoaded", () => {
         `Backend connection failed: ${error.message}. Ensure server & Ollama are running.`
       );
       updateConnectionStatus("disconnected");
-      setInteractionDisabled(true); // Keep controls disabled
+      setInteractionDisabled(true);
       defaultModel = null;
       modelSelect.innerHTML = `<option value="">Connect Error</option>`;
       modelSelect.disabled = true;
@@ -334,34 +347,62 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   /**
-   * Handles the user input submission by sending it and the selected model to the backend.
+   * Handles the user input submission (text and optional image) to the backend.
    */
   async function handleSubmit() {
     const userInput = inputField.value.trim();
+    const isImageAttached = !!attachedImageBase64; // Check if image data exists
 
-    // Check if input exists and a model is selected
-    if (!userInput) return; // Don't submit empty input
+    // Require either text input OR an attached image to proceed
+    if (!userInput && !isImageAttached) {
+      addError("Please enter a prompt or attach an image.");
+      inputField.focus();
+      return;
+    }
+
     if (!currentSelectedModel) {
       addError("Please select an Ollama model first.");
-      // Optionally shake the dropdown or highlight it
       modelSelect.focus();
       return;
     }
 
-    addUserMessage(`> ${userInput}`);
+    // Display user message (including image indication)
+    addUserMessage(userInput || "(Image prompt)", isImageAttached); // Show placeholder if no text
+
     const currentInput = userInput; // Store before clearing
     inputField.value = ""; // Clear input field
 
     const loadingIndicator = showLoading();
     updateConnectionStatus("connecting");
-    setInteractionDisabled(true); // Disable UI during request
+    setInteractionDisabled(true);
 
-    // Construct payload with prompt and selected model
+    // Construct payload
     const payload = {
-      prompt: currentInput,
+      prompt: currentInput || "Describe this image", // Use default prompt if only image
       model: currentSelectedModel,
+      image: null, // Initialize image field
     };
-    console.log("Sending payload:", payload);
+
+    // Add image data if attached, stripping the prefix
+    if (isImageAttached && attachedImageBase64) {
+      const base64Prefix = "data:image/";
+      const commaIndex = attachedImageBase64.indexOf(",");
+      if (attachedImageBase64.startsWith(base64Prefix) && commaIndex > -1) {
+        payload.image = attachedImageBase64.substring(commaIndex + 1); // Get only the base64 part
+      } else {
+        console.warn(
+          "Unexpected Base64 format, sending as is:",
+          attachedImageBase64.substring(0, 50) + "..."
+        );
+        // Optionally, send the whole thing or handle the error differently
+        payload.image = attachedImageBase64;
+      }
+    }
+
+    console.log("Sending payload:", {
+      ...payload,
+      image: payload.image ? "[Attached Image]" : null,
+    }); // Don't log full base64
 
     try {
       const response = await fetch(`${BACKEND_URL}/api/ask`, {
@@ -373,41 +414,39 @@ document.addEventListener("DOMContentLoaded", () => {
         body: JSON.stringify(payload),
       });
 
-      hideLoading(loadingIndicator); // Hide loading indicator once response headers are received
-
-      const data = await response.json(); // Try parsing JSON body
+      hideLoading(loadingIndicator);
+      const data = await response.json();
 
       if (!response.ok) {
-        // Use error from JSON body if available, otherwise use status text
         throw new Error(
           data.error || `Request failed with status ${response.status}`
         );
       }
 
       if (data.error) {
-        addError(data.error); // Display error reported by backend API
+        addError(data.error);
         updateConnectionStatus("error");
       } else if (data.suggestion) {
-        // Render the suggestion using the markdown function
         const renderedElement = renderMarkdownResponse(data.suggestion);
         outputArea.appendChild(renderedElement);
         scrollToBottom();
-        updateConnectionStatus("connected"); // Back to ready state
+        updateConnectionStatus("connected");
       } else {
-        // Handle case where response is OK but has no suggestion/error
         addError("Received an empty or unexpected response from the backend.");
         updateConnectionStatus("error");
       }
     } catch (error) {
-      // Handle network errors or exceptions during fetch/parsing
       console.error("Error during handleSubmit fetch:", error);
-      hideLoading(loadingIndicator); // Ensure loading is hidden on error
+      hideLoading(loadingIndicator);
       addError(`Communication error: ${error.message}`);
-      updateConnectionStatus("error"); // Show error state
+      updateConnectionStatus("error");
     } finally {
-      // Re-enable UI elements regardless of success or failure
+      // --- Clear the attachment after sending ---
+      clearAttachment();
+      // --- End clear attachment ---
+
       setInteractionDisabled(false);
-      inputField.focus(); // Put focus back on input field
+      inputField.focus();
     }
   }
 
@@ -420,14 +459,16 @@ document.addEventListener("DOMContentLoaded", () => {
     submitButton.disabled = disabled;
     modelSelect.disabled = disabled;
     refreshModelsBtn.disabled = disabled;
+    attachButton.disabled = disabled; // Also disable attach button during processing
+    removeAttachmentBtn.disabled = disabled; // Disable remove button too
 
-    // Adjust styles for disabled state if needed (optional)
     const cursorStyle = disabled ? "not-allowed" : "";
     inputField.style.cursor = disabled ? "not-allowed" : "text";
     submitButton.style.cursor = cursorStyle;
     modelSelect.style.cursor = cursorStyle;
     refreshModelsBtn.style.cursor = cursorStyle;
-    // You might also adjust opacity, etc.
+    attachButton.style.cursor = cursorStyle;
+    removeAttachmentBtn.style.cursor = cursorStyle;
   }
 
   /**
@@ -449,7 +490,7 @@ document.addEventListener("DOMContentLoaded", () => {
         "Window API (window.api.send) not available via preload bridge."
       );
       const controls = document.querySelector(".window-controls");
-      if (controls) controls.style.display = "none"; // Hide controls if bridge isn't working
+      if (controls) controls.style.display = "none";
     }
   }
 
@@ -470,7 +511,6 @@ document.addEventListener("DOMContentLoaded", () => {
   modelSelect.addEventListener("change", (event) => {
     currentSelectedModel = event.target.value;
     console.log(`Model selection changed to: ${currentSelectedModel}`);
-    // Optional: addSystemMessage(`Model set to: ${currentSelectedModel}`);
   });
 
   // Refresh model list on button click
@@ -478,24 +518,76 @@ document.addEventListener("DOMContentLoaded", () => {
     fetchAndPopulateModels();
   });
 
+  // --- New Event Listeners for Image Upload ---
+
+  // Trigger hidden file input when attach button is clicked
+  attachButton.addEventListener("click", () => {
+    if (!attachButton.disabled) {
+      // Prevent triggering if disabled
+      imageUploadInput.click();
+    }
+  });
+
+  // Handle file selection from the hidden input
+  imageUploadInput.addEventListener("change", (event) => {
+    const files = event.target.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+
+      // Basic validation: Check if it's an image
+      if (!file.type.startsWith("image/")) {
+        addError("Please select a valid image file (e.g., PNG, JPG, GIF).");
+        clearAttachment(); // Clear any previous state and reset input
+        return;
+      }
+
+      // Read the file as Base64 Data URL
+      const reader = new FileReader();
+
+      reader.onload = (e) => {
+        attachedImageBase64 = e.target.result; // Store the full data URL initially
+        attachedImageFilename = file.name; // Store filename
+        console.log(
+          `Image attached: ${file.name}, Size: ${Math.round(
+            file.size / 1024
+          )} KB`
+        );
+
+        // Update UI to show attached file
+        attachmentFilename.textContent = file.name;
+        attachmentInfo.classList.remove("hidden");
+      };
+
+      reader.onerror = (error) => {
+        console.error("Error reading file:", error);
+        addError(`Failed to read image file: ${error}`);
+        clearAttachment();
+      };
+
+      reader.readAsDataURL(file); // Start reading the file
+    }
+    // No need to reset input value here, do it in clearAttachment
+  });
+
+  // Handle remove attachment button click
+  removeAttachmentBtn.addEventListener("click", () => {
+    clearAttachment();
+  });
+  // --- End New Event Listeners ---
+
   // --- Initial Execution ---
   console.log("Setting up AIFred UI...");
   setupWindowControls();
-
-  // Initial messages and status check
   addSystemMessage("AIFred Electron UI Initialized...");
-  // Call checkBackendStatus after a short delay to allow backend to potentially start
   setTimeout(checkBackendStatus, 1000);
 
   // --- IPC Communication Setup ---
   if (window.api && typeof window.api.receive === "function") {
-    // Example receiver (add specific handlers as needed)
     window.api.receive("fromMain", (data) => {
       console.log("Received from main via IPC:", data);
       if (data.type === "statusUpdate") {
         addSystemMessage(`Main Process Update: ${data.message}`);
       }
-      // Handle other message types from main process if necessary
     });
   } else {
     console.warn(
