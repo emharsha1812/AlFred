@@ -1,32 +1,96 @@
-// preload.js
-// This file runs in a privileged context with access to both Node.js and browser APIs
+// electron-frontend/preload.js
+const { contextBridge, ipcRenderer } = require("electron");
 
-// Set up contextBridge for secure IPC (Inter-Process Communication)
-const { contextBridge, ipcRenderer } = require('electron');
+// --- Highlight.js Setup ---
+let hljsApi = {}; // Object to hold our highlight function
+try {
+  console.log("Preload: Loading highlight.js...");
+  // Load the core library using require (available in preload)
+  const hljs = require("highlight.js/lib/core");
 
-// Expose a limited API to the renderer process
-contextBridge.exposeInMainWorld('api', {
-  // Method to send messages to the main process
+  // Load and register the languages you need explicitly
+  hljs.registerLanguage("python", require("highlight.js/lib/languages/python"));
+  hljs.registerLanguage(
+    "javascript",
+    require("highlight.js/lib/languages/javascript")
+  );
+  hljs.registerLanguage("css", require("highlight.js/lib/languages/css"));
+  hljs.registerLanguage("xml", require("highlight.js/lib/languages/xml")); // For HTML
+  hljs.registerLanguage("bash", require("highlight.js/lib/languages/bash"));
+  hljs.registerLanguage("json", require("highlight.js/lib/languages/json"));
+  // Add other languages if needed
+
+  console.log("Preload: highlight.js loaded and languages registered.");
+
+  // Define the function that will perform highlighting
+  hljsApi.highlight = (code, language) => {
+    // Check if the specified language is loaded
+    if (language && hljs.getLanguage(language)) {
+      try {
+        // Use hljs.highlight, returning the .value (highlighted HTML string)
+        return hljs.highlight(code, {
+          language: language,
+          ignoreIllegals: true,
+        }).value;
+      } catch (e) {
+        console.error(
+          `Preload Error (highlight): Failed to highlight with lang ${language}`,
+          e
+        );
+        return code; // Return original code on error
+      }
+    } else {
+      // If language not specified or not loaded, fallback to auto-detection
+      try {
+        return hljs.highlightAuto(code).value;
+      } catch (e) {
+        console.error(
+          `Preload Error (highlightAuto): Failed to auto-highlight`,
+          e
+        );
+        return code; // Return original code on error
+      }
+    }
+  };
+} catch (err) {
+  console.error(
+    "PRELOAD SCRIPT ERROR: Failed to load or setup highlight.js!",
+    err
+  );
+  // Provide a dummy function if loading failed so renderer doesn't crash
+  hljsApi.highlight = (code, language) => {
+    console.warn(
+      "Preload Warning: highlight.js is not available. Returning raw code."
+    );
+    return code; // Return raw code without highlighting
+  };
+}
+// --- End Highlight.js Setup ---
+
+// Expose API to the renderer process
+contextBridge.exposeInMainWorld("api", {
+  // --- Existing IPC methods ---
   send: (channel, data) => {
-    // Whitelist channels for security
-    const validChannels = ['toMain', 'executeCode', 'requestBackendConnection'];
+    const validChannels = ["toMain" /* other channels */];
     if (validChannels.includes(channel)) {
       ipcRenderer.send(channel, data);
     }
   },
-  
-  // Method to receive messages from the main process
   receive: (channel, func) => {
-    // Whitelist channels for security
-    const validChannels = ['fromMain', 'backendResponse', 'statusUpdate'];
+    const validChannels = ["fromMain" /* other channels */];
     if (validChannels.includes(channel)) {
-      // Remove the event listener to avoid memory leaks
-      ipcRenderer.removeAllListeners(channel);
-      // Add the new event listener
-      ipcRenderer.on(channel, (event, ...args) => func(...args));
+      const subscription = (event, ...args) => func(...args);
+      ipcRenderer.on(channel, subscription);
+      return () => {
+        ipcRenderer.removeListener(channel, subscription);
+      }; // Unsubscribe function
     }
-  }
+    return () => {}; // Dummy unsubscribe
+  },
+  // --- ADDED: Expose the highlighter function ---
+  highlightCode: (code, language) => {
+    return hljsApi.highlight(code, language); // Call the function defined above
+  },
 });
 
-// Log when preload has initialized
-console.log('Preload script loaded');
+console.log("Preload script finished. API (including highlightCode) exposed.");

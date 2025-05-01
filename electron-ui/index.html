@@ -4,11 +4,11 @@
     <meta charset="UTF-8" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; 
-             connect-src http://127.0.0.1:8000; 
-             style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; 
-             font-src https://fonts.gstatic.com; 
-             script-src 'self'; 
+      content="default-src 'self';
+             connect-src http://127.0.0.1:8000;
+             style-src 'self' https://fonts.googleapis.com 'unsafe-inline';
+             font-src https://fonts.gstatic.com;
+             script-src 'self';
              img-src 'self' data:;"
     />
     <meta
@@ -20,7 +20,6 @@
   </head>
   <body>
     <div id="terminal-window">
-      <!-- Enhanced title bar with window controls and status -->
       <div class="title-bar">
         <div class="app-logo">
           <svg
@@ -60,36 +59,46 @@
           <span id="status-text">Connecting...</span>
         </div>
 
+        <div class="model-selector-container">
+          <label for="model-select">Model:</label>
+          <select name="models" id="model-select" title="Select Ollama Model">
+            <option value="">Loading...</option>
+          </select>
+          <button id="refresh-models-btn" title="Refresh Model List">
+            &#x21bb;
+          </button>
+        </div>
+
         <div class="window-controls">
-          <div class="window-control minimize" id="minimize-btn"></div>
-          <div class="window-control maximize" id="maximize-btn"></div>
-          <div class="window-control close" id="close-btn"></div>
+          <div
+            class="window-control minimize"
+            id="minimize-btn"
+            title="Minimize"
+          ></div>
+          <div
+            class="window-control maximize"
+            id="maximize-btn"
+            title="Maximize/Restore"
+          ></div>
+          <div class="window-control close" id="close-btn" title="Close"></div>
         </div>
       </div>
-
-      <!-- Main container with output and input areas -->
       <div id="main-container">
         <div id="output-area"></div>
 
-        <!-- New input area for sending commands -->
         <div id="input-container">
           <input
             type="text"
             id="input-field"
-            placeholder="Send a message or type a command..."
+            placeholder="Send a message..."
             autocomplete="off"
           />
           <button id="submit-button">Send</button>
         </div>
       </div>
     </div>
+    <script src="./node_modules/marked/marked.min.js"></script>
 
-    <!-- Load highlight.js for code syntax highlighting -->
-    <script src="./node_modules/highlight.js/lib/core.js"></script>
-    <script src="./node_modules/highlight.js/lib/languages/javascript.js"></script>
-    <script src="./node_modules/highlight.js/lib/languages/python.js"></script>
-
-    <!-- Main renderer script -->
     <script src="renderer.js"></script>
   </body>
 </html>
