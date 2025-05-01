@@ -1,10 +1,11 @@
-# AIFred - Your Local AI Coding Buddy
+# AIFred - Your Local AI Coding Butler
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 AIFred is your local AI coding buddy! It runs discreetly on your screen, ready to help explain code, suggest fixes, or answer programming questions using AI models that run **entirely on your own machine** via Ollama.
+![product](https://github.com/user-attachments/assets/760069d2-d586-4f56-9978-6a14b36220db)
 
-*(Add a screenshot or GIF of the application here)*
+
 
 ## What it Does
 
