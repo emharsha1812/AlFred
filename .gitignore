@@ -124,3 +124,55 @@ htmlcov/
 credentials.json
 secrets.json
 config.local.js
+
+
+
+# Python Virtual Environment
+python-backend/alfred/
+venv/
+env/
+*.venv
+.venv
+
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Python build artifacts
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Node.js dependencies
+electron-ui/node_modules/
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# IDE / Editor / OS specific
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+Thumbs.db
+
+# Log files
+*.log
+
+# Temporary files (like the ones from soundfile/pydub if not handled properly)
+# Might not be strictly necessary if cleanup works, but can be a safeguard
+*.tmpaudio
+*.tmpwav
+
+# Other common ignores
+.env*
+*.env.*
+!.env.example
