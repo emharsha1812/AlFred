@@ -88,6 +88,110 @@ body {
   -webkit-backdrop-filter: blur(var(--glass-blur));
 }
 
+#recording-indicator {
+  position: absolute; /* Or relative, depending on placement */
+  top: 10px; /* Example positioning */
+  right: 10px; /* Example positioning */
+  background-color: rgba(255, 0, 0, 0.7);
+  color: white;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 500;
+  z-index: 10; /* Ensure it's visible */
+  animation: pulse-light 1.5s infinite;
+}
+
+@keyframes pulse-light {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* === Styles for Input Container Elements === */
+
+#input-container {
+  /* ... (existing styles) ... */
+  gap: var(--space-sm); /* Add gap for spacing between buttons/input */
+}
+
+/* Microphone button styling (similar to attach-button) */
+#mic-button {
+  background: rgba(
+    var(--accent-purple-rgb),
+    0.1
+  ); /* Use a different accent maybe? */
+  border: 1px solid rgba(var(--accent-purple-rgb), 0.2);
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  /* margin-right: var(--space-sm); REMOVED - using gap in container now */
+  cursor: pointer;
+  font-size: 16px; /* Adjust size as needed */
+  line-height: 1;
+  transition: all 0.2s ease;
+}
+
+#mic-button:hover:not(:disabled) {
+  background-color: rgba(var(--accent-purple-rgb), 0.2);
+  color: var(--accent-purple);
+  border-color: var(--accent-purple);
+  transform: translateY(-1px);
+}
+
+#mic-button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+#mic-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Style for when recording is active */
+#mic-button.recording {
+  background-color: rgba(255, 85, 85, 0.8); /* Red background */
+  border-color: rgba(255, 85, 85, 1);
+  color: white;
+  animation: pulse-background 1.5s infinite;
+}
+
+#mic-button.recording:hover:not(:disabled) {
+  background-color: rgba(255, 85, 85, 0.9); /* Slightly brighter red on hover */
+  transform: translateY(-1px); /* Keep hover effect */
+}
+
+@keyframes pulse-background {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 85, 85, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 5px rgba(255, 85, 85, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 85, 85, 0);
+  }
+}
+
+#input-field {
+  /* ... (existing styles) ... */
+}
+
+#submit-button {
+  /* ... (existing styles) ... */
+}
+
+/* Utility classes */
+.hidden {
+  display: none !important;
+}
+
 /* Subtle noise texture */
 #terminal-window::before {
   content: "";

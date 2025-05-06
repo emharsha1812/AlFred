@@ -18,6 +18,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const attachmentInfo = document.getElementById("attachment-info");
   const attachmentFilename = document.getElementById("attachment-filename");
   const removeAttachmentBtn = document.getElementById("remove-attachment-btn");
+  const micButton = document.getElementById("mic-button");
+  const recordingIndicator = document.getElementById("recording-indicator");
   // --- End New DOM Elements ---
 
   // --- State Variables ---
@@ -26,7 +28,10 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- New State Variable for Image ---
   let attachedImageBase64 = null; // Store the base64 string of the image
   let attachedImageFilename = null; // Store the filename
-  // --- End New State Variable ---
+  let isRecording = false;
+  let mediaRecorder = null;
+  let audioChunks = [];
+  let audioStream = null;
 
   // --- Backend API URL ---
   const BACKEND_URL = "http://127.0.0.1:8000";
@@ -86,9 +91,300 @@ document.addEventListener("DOMContentLoaded", () => {
     console.log("Attachment cleared.");
   }
 
-  // --- (renderMarkdownResponse, showLoading, hideLoading, updateConnectionStatus, scrollToBottom - remain unchanged) ---
-  // Include the updated renderMarkdownResponse from previous step if you haven't already
+  async function handleMicClick() {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      // Check permission status before attempting to get user media
+      try {
+        // Use newer promise-based permission query if available
+        if (navigator.permissions) {
+          const permissionStatus = await navigator.permissions.query({
+            name: "microphone",
+          });
+          console.log("Microphone permission status:", permissionStatus.state); // 'granted', 'prompt', 'denied'
+          if (permissionStatus.state === "denied") {
+            addError(
+              "Microphone access denied. Please enable it in browser/system settings."
+            );
+            return; // Don't proceed if denied
+          }
+        } else {
+          console.warn(
+            "Permissions API not available, proceeding directly to getUserMedia."
+          );
+        }
+        // If 'prompt' or 'granted' (or if Permissions API not supported), attempt to start recording
+        await startRecording(); // Make startRecording async
+      } catch (err) {
+        // Handle errors if the Permissions API itself fails (less common)
+        console.error("Error checking/requesting microphone permission:", err);
+        addError("Could not check/request microphone permissions.");
+      }
+    }
+  }
 
+  /**
+   * Requests microphone access and starts recording. Returns promise.
+   */
+  async function startRecording() {
+    if (isRecording) return; // Prevent multiple starts
+    console.log("Attempting to start recording...");
+
+    // Immediately update UI to indicate attempt
+    setInteractionDisabled(true, true); // Disable others, keep mic active for stopping
+    micButton.classList.add("recording"); // Add recording style
+    if (recordingIndicator) recordingIndicator.classList.remove("hidden"); // Show indicator
+
+    try {
+      // Request microphone access
+      audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      console.log("Microphone access granted.");
+      addSystemMessage("Recording started... Click 🎤 again to stop.");
+
+      isRecording = true;
+      audioChunks = []; // Reset chunks for new recording
+
+      // Determine supported mimeType
+      const options = {};
+      const supportedTypes = [
+        "audio/webm;codecs=opus",
+        "audio/ogg;codecs=opus",
+        "audio/webm",
+        "audio/wav",
+      ];
+      for (const type of supportedTypes) {
+        if (MediaRecorder.isTypeSupported(type)) {
+          options.mimeType = type;
+          break;
+        }
+      }
+      console.log("Using MediaRecorder with options:", options);
+
+      mediaRecorder = new MediaRecorder(audioStream, options);
+
+      // --- Event Handlers for MediaRecorder ---
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          console.log(`Audio data available: ${event.data.size} bytes`);
+          audioChunks.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        console.log("MediaRecorder stopped. Processing audio chunks...");
+        // Combine chunks into a single Blob
+        const audioBlob = new Blob(audioChunks, {
+          type: mediaRecorder.mimeType || "application/octet-stream",
+        });
+        console.log(
+          `Audio Blob created: Type=${audioBlob.type}, Size=${audioBlob.size}`
+        );
+
+        stopAudioStreamTracks(); // Stop the underlying audio stream tracks
+        mediaRecorder = null; // Clear recorder instance
+        audioChunks = []; // Clear chunk buffer
+
+        // Process the recorded audio (currently placeholder)
+        if (audioBlob.size > 0) {
+          await handleRecordedAudio(audioBlob);
+        } else {
+          console.warn("Recording resulted in empty audio blob.");
+          addError("Recording was empty or failed to capture audio.");
+          resetRecordingState(); // Reset UI even if blob is empty
+        }
+      };
+
+      mediaRecorder.onerror = (event) => {
+        console.error("MediaRecorder error:", event.error);
+        addError(`Recording Error: ${event.error.name || "Unknown Error"}`);
+        stopRecordingCleanup(); // Clean up resources and UI on error
+      };
+      // --- End Event Handlers ---
+
+      mediaRecorder.start(); // Start recording
+      console.log("Recording successfully started.");
+    } catch (err) {
+      console.error("Error accessing microphone or starting recorder:", err);
+      if (
+        err.name === "NotAllowedError" ||
+        err.name === "PermissionDeniedError"
+      ) {
+        addError("Microphone access denied by user.");
+      } else if (
+        err.name === "NotFoundError" ||
+        err.name === "DevicesNotFoundError"
+      ) {
+        addError(
+          "No microphone found. Please ensure it's connected and enabled."
+        );
+      } else {
+        addError(`Mic Error: ${err.message || err.name}`);
+      }
+      stopRecordingCleanup(); // Clean up resources and UI if start fails
+    }
+  }
+
+  /**
+   * Stops the active recording if running.
+   */
+  function stopRecording() {
+    if (!mediaRecorder || mediaRecorder.state !== "recording") {
+      console.warn(
+        "Stop recording called, but recorder wasn't active or ready."
+      );
+      stopRecordingCleanup(); // Attempt cleanup just in case state is inconsistent
+      return;
+    }
+    console.log("Stopping recording via stopRecording function...");
+    try {
+      mediaRecorder.stop(); // This triggers the 'onstop' event handler
+    } catch (e) {
+      console.error("Error explicitly stopping MediaRecorder:", e);
+      stopRecordingCleanup(); // Manually trigger cleanup if stop fails
+    }
+    isRecording = false; // Update state immediately
+    micButton.classList.remove("recording"); // Visually indicate stopping immediately
+    if (recordingIndicator) recordingIndicator.classList.add("hidden"); // Hide indicator
+  }
+
+  /** Stops the tracks of the current audio stream */
+  function stopAudioStreamTracks() {
+    if (audioStream) {
+      console.log("Stopping audio stream tracks.");
+      audioStream.getTracks().forEach((track) => track.stop());
+      audioStream = null;
+    }
+  }
+
+  /**
+   * Cleans up recording state and resources, typically after stop or error.
+   */
+  function stopRecordingCleanup() {
+    console.log("Running recording cleanup...");
+    isRecording = false;
+    if (mediaRecorder && mediaRecorder.state !== "inactive") {
+      console.warn(
+        "Recorder was not inactive during cleanup, attempting stop."
+      );
+      try {
+        mediaRecorder.stop();
+      } catch (e) {
+        /* Ignore */
+      }
+    }
+    stopAudioStreamTracks(); // Ensure stream tracks are stopped
+    mediaRecorder = null;
+    audioChunks = [];
+    resetRecordingState(); // Reset UI elements to idle state
+  }
+  /**
+   * Processes the recorded audio Blob by sending it to the backend /api/transcribe endpoint.
+   * @param {Blob} audioBlob The recorded audio data.
+   */
+  async function handleRecordedAudio(audioBlob) {
+    console.log(
+      `Processing audio blob: Size=${audioBlob.size}, Type=${audioBlob.type}`
+    );
+    if (audioBlob.size === 0) {
+      addError("Cannot process empty audio recording.");
+      resetRecordingState();
+      return;
+    }
+    addSystemMessage(
+      `Sending recorded audio (${Math.round(
+        audioBlob.size / 1024
+      )} KB) for transcription...`
+    );
+
+    // Show transcribing state
+    updateConnectionStatus("connecting"); // Reuse 'connecting' visual state
+    statusText.textContent = "Transcribing..."; // Set specific text
+    setInteractionDisabled(true); // Disable all inputs while processing
+
+    // Prepare FormData to send the Blob
+    const formData = new FormData();
+    // The key "audio_file" MUST match the parameter name in the FastAPI endpoint.
+    // Provide a filename; the extension helps the server potentially, but the type is more important.
+    const fileExtension = (audioBlob.type.split("/")[1] || "webm").split(
+      ";"
+    )[0]; // Get extension like 'webm' or 'wav'
+    formData.append("audio_file", audioBlob, `recording.${fileExtension}`);
+
+    try {
+      console.log("Sending audio data to /api/transcribe...");
+      const response = await fetch(`${BACKEND_URL}/api/transcribe`, {
+        method: "POST",
+        body: formData, // Send FormData directly
+        // Browser sets Content-Type to multipart/form-data automatically with boundary
+      });
+
+      // Check if the request was successful (status code 2xx)
+      if (!response.ok) {
+        // Try to get error details from the response body (FastAPI often includes a 'detail' field)
+        let errorDetail = `Transcription request failed with status ${response.status} (${response.statusText})`;
+        try {
+          const errorData = await response.json();
+          // Use the detail from FastAPI's HTTPException if available
+          if (errorData && errorData.detail) {
+            errorDetail = `${response.status}: ${errorData.detail}`;
+          }
+        } catch (e) {
+          // If the response body isn't JSON, use the original status text
+          console.debug("Response body was not JSON or failed to parse.");
+        }
+        // Throw an error that includes the status and detail
+        throw new Error(errorDetail);
+      }
+
+      // Parse the successful JSON response
+      const data = await response.json(); // Expects { "text": "...", "error": null } on success
+
+      // Check the response structure from our backend
+      if (data.error) {
+        // Handle errors reported specifically in the JSON { "error": "..." } structure
+        // Although we now prefer raising HTTPException in the backend
+        throw new Error(data.error);
+      } else if (data.text !== null && data.text !== undefined) {
+        // Success! Populate the input field
+        const transcribedText = data.text;
+        console.log("Transcription received:", transcribedText);
+        inputField.value = transcribedText; // Set the input field value
+        addSystemMessage("Transcription complete.");
+        updateConnectionStatus("connected", "Transcription Done"); // Show success briefly
+        await new Promise((resolve) => setTimeout(resolve, 1500)); // Pause on success message
+      } else {
+        // Handle unexpected case where response is OK but text is missing/null
+        console.warn("Received OK response but missing 'text' field:", data);
+        throw new Error(
+          "Received an empty or invalid transcription response from backend."
+        );
+      }
+    } catch (error) {
+      // Catch network errors, thrown errors from !response.ok, or JSON parsing errors
+      console.error("Error during transcription request:", error);
+      addError(`Transcription failed: ${error.message}`); // Display the error message in the UI
+      updateConnectionStatus("error"); // Show error state
+      await new Promise((resolve) => setTimeout(resolve, 2000)); // Pause on error message
+    } finally {
+      // This block executes regardless of success or error
+      console.log("Finishing transcription handling, resetting UI.");
+      updateConnectionStatus("connected"); // Always go back to ready state eventually
+      resetRecordingState(); // Re-enable UI elements
+      inputField.focus(); // Focus input field whether successful or not
+    }
+  }
+  /**
+   * Resets UI elements related to recording to their idle state.
+   */
+  function resetRecordingState() {
+    console.log("Resetting recording UI state.");
+    isRecording = false; // Ensure state is false
+    micButton.classList.remove("recording"); // Remove recording style from button
+    if (recordingIndicator) recordingIndicator.classList.add("hidden"); // Hide indicator
+    // Re-enable all interactive elements according to normal rules
+    setInteractionDisabled(false);
+  }
   /**
    * Parses Markdown string, highlights code blocks, creates a container div,
    * and returns it ready for appending. Relies on global 'marked' and bridged 'api.highlightCode'.
@@ -450,25 +746,63 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // /**
+  //  * Disables or enables interactive UI elements during requests.
+  //  * @param {boolean} disabled True to disable, false to enable.
+  //  */
+  // function setInteractionDisabled(disabled) {
+  //   inputField.disabled = disabled;
+  //   submitButton.disabled = disabled;
+  //   modelSelect.disabled = disabled;
+  //   refreshModelsBtn.disabled = disabled;
+  //   attachButton.disabled = disabled; // Also disable attach button during processing
+  //   removeAttachmentBtn.disabled = disabled; // Disable remove button too
+
+  //   const cursorStyle = disabled ? "not-allowed" : "";
+  //   inputField.style.cursor = disabled ? "not-allowed" : "text";
+  //   submitButton.style.cursor = cursorStyle;
+  //   modelSelect.style.cursor = cursorStyle;
+  //   refreshModelsBtn.style.cursor = cursorStyle;
+  //   attachButton.style.cursor = cursorStyle;
+  //   removeAttachmentBtn.style.cursor = cursorStyle;
+  // }
+
   /**
-   * Disables or enables interactive UI elements during requests.
+   * Disables or enables interactive UI elements.
    * @param {boolean} disabled True to disable, false to enable.
+   * @param {boolean} recording True if disabling due to ongoing recording (keeps mic button active).
    */
-  function setInteractionDisabled(disabled) {
+  function setInteractionDisabled(disabled, recording = false) {
     inputField.disabled = disabled;
     submitButton.disabled = disabled;
     modelSelect.disabled = disabled;
     refreshModelsBtn.disabled = disabled;
-    attachButton.disabled = disabled; // Also disable attach button during processing
-    removeAttachmentBtn.disabled = disabled; // Disable remove button too
+    attachButton.disabled = disabled;
+    removeAttachmentBtn.disabled = disabled;
+    // Mic button is disabled like others UNLESS we are currently recording
+    micButton.disabled = disabled && !recording;
 
-    const cursorStyle = disabled ? "not-allowed" : "";
-    inputField.style.cursor = disabled ? "not-allowed" : "text";
-    submitButton.style.cursor = cursorStyle;
-    modelSelect.style.cursor = cursorStyle;
-    refreshModelsBtn.style.cursor = cursorStyle;
-    attachButton.style.cursor = cursorStyle;
-    removeAttachmentBtn.style.cursor = cursorStyle;
+    const defaultCursor = "pointer";
+    const disabledCursor = "not-allowed";
+
+    // Set cursor for buttons
+    [
+      submitButton,
+      modelSelect,
+      refreshModelsBtn,
+      attachButton,
+      removeAttachmentBtn,
+      micButton,
+    ].forEach((btn) => {
+      if (btn) {
+        // Special handling for mic button during recording
+        const isMicAndRecording = recording && btn === micButton;
+        btn.style.cursor =
+          disabled && !isMicAndRecording ? disabledCursor : defaultCursor;
+      }
+    });
+    // Set cursor for input field
+    inputField.style.cursor = disabled ? disabledCursor : "text";
   }
 
   /**
@@ -496,6 +830,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // --- Event Listeners ---
 
+  submitButton.addEventListener("click", handleSubmit);
+  // ... other existing listeners ...
+  removeAttachmentBtn.addEventListener("click", () => {
+    clearAttachment();
+  });
+
+  // === Add Mic Button Listener ===
+  micButton.addEventListener("click", handleMicClick);
   // Submit on button click
   submitButton.addEventListener("click", handleSubmit);
 
@@ -576,10 +918,55 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- End New Event Listeners ---
 
   // --- Initial Execution ---
+
   console.log("Setting up AIFred UI...");
   setupWindowControls();
   addSystemMessage("AIFred Electron UI Initialized...");
-  setTimeout(checkBackendStatus, 1000);
+  setTimeout(checkBackendStatus, 1000); // Check backend status
+
+  // === Add Initial Mic Permission Check ===
+  if (navigator.permissions) {
+    // Check if Permissions API is supported
+    navigator.permissions
+      .query({ name: "microphone" })
+      .then((permissionStatus) => {
+        console.log(
+          `Initial microphone permission state: ${permissionStatus.state}`
+        );
+        if (permissionStatus.state === "denied") {
+          addSystemMessage("Note: Microphone access is currently denied.");
+        }
+        // Listen for changes in permission status
+        permissionStatus.onchange = () => {
+          const newState = permissionStatus.state;
+          console.log(`Microphone permission state changed to: ${newState}`);
+          addSystemMessage(
+            `Microphone permission state changed to: ${newState}`
+          );
+          // Disable mic button if changed to denied, enable otherwise (unless already disabled by other logic)
+          if (!isRecording) {
+            // Only change if not actively recording
+            micButton.disabled = newState === "denied";
+            micButton.style.cursor =
+              newState === "denied" ? "not-allowed" : "pointer";
+          }
+        };
+        // Disable button initially if denied
+        if (!isRecording) {
+          // Check recording state just in case
+          micButton.disabled = permissionStatus.state === "denied";
+          micButton.style.cursor =
+            permissionStatus.state === "denied" ? "not-allowed" : "pointer";
+        }
+      })
+      .catch((err) => {
+        console.warn("Could not query microphone permission status:", err);
+      });
+  } else {
+    console.warn(
+      "Permissions API not supported. Mic prompt will appear on first use."
+    );
+  }
 
   // --- IPC Communication Setup ---
   if (window.api && typeof window.api.receive === "function") {

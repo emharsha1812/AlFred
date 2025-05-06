@@ -47,6 +47,8 @@ function createWindow() {
     alwaysOnTop: true, // Keep it on top
     // skipTaskbar: true, // Consider enabling this if you want it mainly controlled by hotkey/tray
     backgroundColor: "#00000000", // Transparent background
+    resizable: true, // Ensure window is resizable
+    fullscreenable: true, // Ensure window can be maximized
   });
 
   // Load the index.html of the app.
