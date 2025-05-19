@@ -4,6 +4,10 @@
 
 AIFred is your local AI coding buddy! It runs discreetly on your screen, ready to help explain code, suggest fixes, answer programming questions, or even take voice commands, using AI models that run **entirely on your own machine**. Privacy first!
 
+## Preview
+![image](https://github.com/user-attachments/assets/49a28264-ed3a-4947-b2a8-7f32dc837cac)
+
+
 
 ## ✨ Features
 
