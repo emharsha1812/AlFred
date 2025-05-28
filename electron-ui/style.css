@@ -682,7 +682,10 @@ body {
 }
 
 /* Attach button with glass effect */
-#attach-button {
+/* Attach button and NEW Clipboard button styling */
+#attach-button,
+#paste-clipboard-button {
+  /* Grouped for shared styles */
   background: rgba(var(--accent-cyan-rgb), 0.1);
   border: 1px solid rgba(var(--accent-cyan-rgb), 0.2);
   color: var(--text-secondary);
@@ -690,23 +693,26 @@ body {
   padding: 8px 10px;
   margin-right: var(--space-sm);
   cursor: pointer;
-  font-size: 16px;
+  font-size: 16px; /* Adjust if icons are different sizes */
   line-height: 1;
   transition: all 0.2s ease;
 }
 
-#attach-button:hover:not(:disabled) {
+#attach-button:hover:not(:disabled),
+#paste-clipboard-button:hover:not(:disabled) {
   background-color: rgba(var(--accent-cyan-rgb), 0.2);
   color: var(--accent-cyan);
   border-color: var(--accent-cyan);
   transform: translateY(-1px);
 }
 
-#attach-button:active:not(:disabled) {
+#attach-button:active:not(:disabled),
+#paste-clipboard-button:active:not(:disabled) {
   transform: translateY(0);
 }
 
-#attach-button:disabled {
+#attach-button:disabled,
+#paste-clipboard-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }

@@ -91,6 +91,18 @@ contextBridge.exposeInMainWorld("api", {
   highlightCode: (code, language) => {
     return hljsApi.highlight(code, language); // Call the function defined above
   },
+  // --- ADDED: Expose clipboard reading function ---
+  readClipboardText: async () => {
+    try {
+      const text = await ipcRenderer.invoke("read-clipboard-text");
+      return text;
+    } catch (error) {
+      console.error("Error invoking read-clipboard-text:", error);
+      return null; // Or throw error, depending on how you want to handle in renderer
+    }
+  },
 });
 
-console.log("Preload script finished. API (including highlightCode) exposed.");
+console.log(
+  "Preload script finished. API (including highlightCode and readClipboardText) exposed."
+);
