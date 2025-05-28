@@ -4,10 +4,10 @@
 
 AIFred is your local AI coding buddy! It runs discreetly on your screen, ready to help explain code, suggest fixes, answer programming questions, or even take voice commands, using AI models that run **entirely on your own machine**. Privacy first!
 
-![AIFred Screenshots - Helping with a coding problem](![image](https://github.com/user-attachments/assets/07204fea-7e00-401e-9446-65500381a3c0)
-)
-![Alfred can also understand and trascribe your voice](![image](https://github.com/user-attachments/assets/68623d44-9296-40b0-8a5b-b5f1b3dff294)
-)
+## Preview
+![image](https://github.com/user-attachments/assets/49a28264-ed3a-4947-b2a8-7f32dc837cac)
+
+
 
 ## ✨ Features
 
@@ -29,9 +29,6 @@ AIFred combines a modern frontend with a local backend:
     * Handles **LLM Interaction:** Forwards text prompts (from typing or transcription) to your running Ollama instance.
     * Sends responses back to the frontend.
 3.  **Ollama:** Runs the actual large language models locally. AIFred communicates with its API.
-
-![Workflow Diagram Placeholder](https://via.placeholder.com/600x150/2a2a2a/ffffff?text=Frontend+<->+Backend+(FastAPI)+<->+[Ollama+|+NeMo+ASR])
-*(Simplified Flow: UI sends text/audio -> Backend processes via NeMo (for audio) or Ollama (for text) -> UI displays result)*
 
 ## 🛠️ Tech Stack
 
